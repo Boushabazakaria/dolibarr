@@ -329,7 +329,7 @@ function project_prepare_head(Project $project, $moreparam = '')
 		if (!empty($project->note_public)) {
 			$nbNote++;
 		}
-		$head[$h][0] = dolBuildUrl(DOL_URL_ROOT.'/projet/note.php', ['id' => $project->id]);
+		$head[$h][0] = dolBuildUrl(DOL_URL_ROOT.'/core/note.php', ['element' => 'projet', 'id' => $project->id]);
 		$head[$h][1] = $langs->trans('Notes');
 		if ($nbNote > 0) {
 			$head[$h][1] .= '<span class="badge marginleftonlyshort">'.$nbNote.'</span>';
@@ -1248,7 +1248,7 @@ function projectLinesa(&$inc, $parent, &$lines, &$level, $var, $showproject, &$t
  * @param	int 	   	$inc					Line number (start to 0, then increased by recursive call)
  * @param   int 		$parent					Id of parent task to show (0 to show all)
  * @param	?User		$fuser					Restrict list to user if defined
- * @param   Task[]		$lines					Array of lines
+ * @param   stdClass[]	$lines					Array of time spent lines (see Task::fetchTimeSpentOnTask())
  * @param   int			$level					Level (start to 0, then increased/decrease by recursive call)
  * @param   array<int,string>	$projectsrole	Array of roles user has on project
  * @param   array<int,string>	$tasksrole		Array of roles user has on task

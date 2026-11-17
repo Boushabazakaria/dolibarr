@@ -8,7 +8,7 @@
  * Copyright (C) 2014		Marcos García		<marcosgdf@gmail.com>
  * Copyright (C) 2015		Bahfir Abbes		<bafbes@gmail.com>
  * Copyright (C) 2016-2017	Ferran Marcet		<fmarcet@2byte.es>
- * Copyright (C) 2019-2025  Frédéric France     <frederic.france@free.fr>
+ * Copyright (C) 2019-2026  Frédéric France     <frederic.france@free.fr>
  * Copyright (C) 2024-2026	MDW					<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -249,13 +249,28 @@ class FormFile
 		$out .= (!empty($capture) ? ' capture="capture"' : '');
 		$out .= '>';
 		$out .= ' ';
-		if ($sectionid) {	// Show overwrite if exists for ECM module only
+		// Show overwrite if exists for ECM module, and everywhere when the replaced files are kept as previous versions
+		if ($sectionid || getDolGlobalInt('MAIN_DOCUMENT_KEEP_VERSIONS') > 0) {
 			$langs->load('link');
 			$out .= '<span class="nowraponsmartphone"><input style="margin-right: 2px;" type="checkbox" id="overwritefile" name="overwritefile" value="1">';
 			$out .= '<label for="overwritefile" class="opacitylow paddingleft paddingright">'.$langs->trans("OverwriteIfExists").'</label>';
 			$out .= '</span>';
 		}
-		$out .= '<input type="submit" class="button smallpaddingimp reposition" name="sendit" value="'.$langs->trans("Upload").'"';
+		// Tooltip with max size limit, shown on the upload button
+		$tooltiptext = '';
+		if (getDolGlobalString('MAIN_UPLOAD_DOC') && $perm && empty($conf->dol_optimize_smallscreen)) {
+			$langs->load('other');
+
+			$menudolibarrsetupmax = $langs->transnoentitiesnoconv("Home").' - '.$langs->transnoentitiesnoconv("Setup").' - '.$langs->transnoentitiesnoconv("Security");
+
+			$tooltiptext = $langs->trans("ThisLimitIsDefinedInSetupAt", $menudolibarrsetupmax, $max, $maxphptoshowparam, $maxphptoshow);
+			if (getDolGlobalString('MAIN_SAVE_FILE_CONTENT_AS_TEXT')) {
+				$tooltiptext .= '<br><br>Option to extract the file content in text to save it in database is ON <span class="opacitymedium">('.getDolGlobalString('MAIN_SAVE_FILE_CONTENT_AS_TEXT').')</span>';
+			}
+		}
+
+		$out .= '<input type="submit" class="button smallpaddingimp reposition'.($tooltiptext ? ' classfortooltip' : '').'" name="sendit" value="'.$langs->trans("Upload").'"';
+		$out .= ($tooltiptext ? ' title="'.dolPrintHTMLForAttribute($tooltiptext).'" data-delayfortooltip="1000"' : '');	// tooltip shown after a delay of 1s
 		$out .= (!getDolGlobalString('MAIN_UPLOAD_DOC') || empty($perm) ? ' disabled' : '');
 		$out .= '>';
 
@@ -264,21 +279,7 @@ class FormFile
 			$out .= '<input type="submit" class="button small button-cancel" name="cancel" value="'.$langs->trans("Cancel").'">';
 		}
 
-		if (getDolGlobalString('MAIN_UPLOAD_DOC')) {
-			if ($perm && empty($conf->dol_optimize_smallscreen)) {
-				$langs->load('other');
-
-				$menudolibarrsetupmax = $langs->transnoentitiesnoconv("Home").' - '.$langs->transnoentitiesnoconv("Setup").' - '.$langs->transnoentitiesnoconv("Security");
-
-				$tooltiptext = $langs->trans("ThisLimitIsDefinedInSetupAt", $menudolibarrsetupmax, $max, $maxphptoshowparam, $maxphptoshow);
-				if (getDolGlobalString('MAIN_SAVE_FILE_CONTENT_AS_TEXT')) {
-					$tooltiptext .= '<br><br>Option to extract the file content in text to save it in database is ON <span class="opacitymedium">('.getDolGlobalString('MAIN_SAVE_FILE_CONTENT_AS_TEXT').')</span>';
-				}
-
-				$out .= ' ';
-				$out .= info_admin($tooltiptext, 1, 0, '1', 'classfortooltip');
-			}
-		} else {
+		if (!getDolGlobalString('MAIN_UPLOAD_DOC')) {
 			$out .= ' ('.$langs->trans("UploadDisabled").')';
 		}
 		$out .= "</td></tr>";
@@ -861,6 +862,17 @@ class FormFile
 				$out .= '&nbsp;';
 			}
 
+			// Choice to append or not the terms of sale file (option MAIN_PDF_ADD_TERMSOFSALE_xxx)
+			$termsofsaletypes = array('propal' => 'PROPAL', 'commande' => 'ORDER', 'contract' => 'CONTRACT', 'facture' => 'INVOICE');
+			if (!empty($termsofsaletypes[$modulepart]) && getDolGlobalInt('MAIN_PDF_ADD_TERMSOFSALE_'.$termsofsaletypes[$modulepart]) && getDolGlobalString('MAIN_INFO_'.$termsofsaletypes[$modulepart].'_TERMSOFSALE')) {
+				$termsofsalechecked = (getDolGlobalInt('MAIN_PDF_ADD_TERMSOFSALE_'.$termsofsaletypes[$modulepart]) == 1);
+				$out .= '<input type="hidden" name="addtermsofsale_shown" value="1">';
+				$out .= '<span class="nowraponall marginrightonly">';
+				$out .= '<input type="checkbox" id="'.$forname.'_addtermsofsale" name="addtermsofsale" value="1"'.($termsofsalechecked ? ' checked' : '').'>';
+				$out .= '<label for="'.$forname.'_addtermsofsale">'.$langs->trans("AppendTermsOfSaleFile", getDolGlobalString('MAIN_INFO_'.$termsofsaletypes[$modulepart].'_TERMSOFSALE')).'</label>';
+				$out .= '</span>';
+			}
+
 			// Button to generate document
 			$genbutton = '<input class="button buttongen reposition nomargintop nomarginbottom" id="'.$forname.'_generatebutton" name="'.$forname.'_generatebutton"';
 			$genbutton .= ' type="submit" value="'.$buttonlabel.'"';
@@ -1026,7 +1038,7 @@ class FormFile
 					$tmpout .= '<td class="nowraponall">';
 					if (!empty($file['share'])) {
 						// Define $urlwithroot
-						$urlwithouturlroot = preg_replace('/'.preg_quote(DOL_URL_ROOT, '/').'$/i', '', trim($dolibarr_main_url_root));
+						$urlwithouturlroot = dolGetUrlWithoutUrlRoot();
 						$urlwithroot = $urlwithouturlroot.DOL_URL_ROOT; // This is to use external domain name found into config file
 						//$urlwithroot=DOL_MAIN_URL_ROOT;					// This is to use same domain name than current
 
@@ -1593,6 +1605,30 @@ class FormFile
 						print $this->showPreview($file, $modulepart, $filepath, 0, '&entity='.(empty($object->entity) ? $conf->entity : $object->entity));
 					}
 
+					// Previous versions of the file, kept when it was replaced by an upload (see MAIN_DOCUMENT_KEEP_VERSIONS)
+					if (!$editline && !empty($file['fullname']) && is_dir(dol_osencode(dirname($file['fullname']).'/.versions'))) {
+						$versions = dol_dir_list(dirname($file['fullname']).'/.versions', 'files', 0, '^'.preg_quote($file['name'], '/').'\.v\d+$', null, 'name', SORT_DESC, 1, 1);
+						if (count($versions)) {
+							print '<details class="documentversions">';
+							print '<summary class="opacitymedium small">'.$langs->trans("PreviousVersionsOfFile", count($versions)).'</summary>';
+							foreach ($versions as $version) {
+								$versiontimestamp = (int) preg_replace('/^.*\.v/', '', $version['name']);
+								print '<div class="small paddingleft">';
+								print '<a href="'.DOL_URL_ROOT.'/document.php?modulepart='.urlencode($modulepart);
+								if (!empty($object->entity)) {
+									print '&entity='.((int) $object->entity);
+								}
+								print '&file='.urlencode((dirname($filepath) != '.' ? dirname($filepath).'/' : '').'.versions/'.$version['name']).'">';
+								print img_picto('', 'download', 'class="paddingright"');
+								print dol_print_date($versiontimestamp, 'dayhour', 'tzuser');
+								print '</a>';
+								print ' <span class="opacitymedium">'.dol_print_size($version['size'], 1, 1).'</span>';
+								print '</div>';
+							}
+							print '</details>';
+						}
+					}
+
 					print "</td>\n";
 
 					// Size
@@ -1661,7 +1697,7 @@ class FormFile
 							} else {
 								if ($file['share']) {
 									// Define $urlwithroot
-									$urlwithouturlroot = preg_replace('/'.preg_quote(DOL_URL_ROOT, '/').'$/i', '', trim($dolibarr_main_url_root));
+									$urlwithouturlroot = dolGetUrlWithoutUrlRoot();
 									$urlwithroot = $urlwithouturlroot.DOL_URL_ROOT; // This is to use external domain name found into config file
 									//$urlwithroot=DOL_MAIN_URL_ROOT;					// This is to use same domain name than current
 
@@ -2315,7 +2351,7 @@ class FormFile
 				print '<td class="right">';
 				if (!empty($file['share'])) {
 					// Define $urlwithroot
-					$urlwithouturlroot = preg_replace('/'.preg_quote(DOL_URL_ROOT, '/').'$/i', '', trim($dolibarr_main_url_root));
+					$urlwithouturlroot = dolGetUrlWithoutUrlRoot();
 					$urlwithroot = $urlwithouturlroot.DOL_URL_ROOT; // This is to use external domain name found into config file
 					//$urlwithroot=DOL_MAIN_URL_ROOT;					// This is to use same domain name than current
 
@@ -2505,7 +2541,7 @@ class FormFile
 				print '<td class="center">';
 				if ($link->share) {
 					global $dolibarr_main_url_root;
-					$urlwithouturlroot = preg_replace('/' . preg_quote(DOL_URL_ROOT, '/') . '$/i', '', trim($dolibarr_main_url_root));
+					$urlwithouturlroot = dolGetUrlWithoutUrlRoot();
 					$urlwithroot = $urlwithouturlroot . DOL_URL_ROOT; // This is to use external domain name found into config file
 					$fulllink = $urlwithroot.'/document.php?type=link&hashp=' . $link->share;
 
