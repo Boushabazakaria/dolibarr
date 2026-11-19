@@ -1673,6 +1673,8 @@ jQuery(document).ready(function() {
 		// The page is in an iframe
 		jQuery(".side-nav-vert, .side-nav, .websitebar").hide();
 		jQuery(".id-container").css('width', '100%');
+		// Without the left menu, #id-right must not stay a table-cell, otherwise its width is reduced to the width of its content
+		jQuery("#id-right").css({"display": "block", "width": "100%"});
 
 	}
 
@@ -2012,6 +2014,44 @@ $(function() {
 				setLastClickedRowStatus($(this), 1);
 			}
 		}
+	});
+});
+
+
+/*
+ * Left menu with MAIN_MENU_EXPAND_LEFT_LEVEL_2_ON_HOVER: the sub entries of a block are expanded when mouse stays over its title,
+ * other blocks are collapsed. A mousemove is required, so a title moving under a still mouse during animation does not expand.
+ */
+$(function() {
+	let blocks = $('.blockvmenuexpandonhover');
+	if (blocks.length === 0) {
+		return;
+	}
+	let animationDuration = 250;
+	let hoverDelay = 150;			/* To not expand blocks when mouse just crosses titles */
+	let hoverTimer = null;
+
+	let expandBlock = function (block) {
+		if (block.hasClass('blockvmenuexpanded')) {
+			return;
+		}
+		blocks.filter('.blockvmenuexpanded').removeClass('blockvmenuexpanded').children('.menu_subentries').stop(true).slideUp(animationDuration);
+		block.addClass('blockvmenuexpanded').children('.menu_subentries').stop(true).slideDown(animationDuration);
+	};
+
+	blocks.children('.menu_titre').on('mousemove', function () {
+		let block = $(this).parent();
+		if (hoverTimer === null && !block.hasClass('blockvmenuexpanded')) {
+			hoverTimer = setTimeout(function () {
+				hoverTimer = null;
+				expandBlock(block);
+			}, hoverDelay);
+		}
+	}).on('mouseleave', function () {
+		clearTimeout(hoverTimer);
+		hoverTimer = null;
+	}).on('focusin', function () {
+		expandBlock($(this).parent());
 	});
 });
 
